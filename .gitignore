@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Virtual Environment
+ENV/
+env/
+venv/
+.venv/
+
+# PyTorch/ML Model checkpoints and weights
+rtv_ckpts/
+*.pth
+*.pkl
+*.pickle
+checkpoints/
+*.ckpt
+
+# Large data files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Backup files
+backup/
+*.bak
+
+# Dataset files (optional - uncomment if datasets are large)
+# Datasets/
+
+# SMPL model files (large binary files)
+assets/smpl/*.pkl
+assets/smpl/*.npy
+
+# Output/Results
+results/
+outputs/
+output/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
