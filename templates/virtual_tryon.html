@@ -107,11 +107,13 @@
                             </div>
                         </div>
                         
-                        {% if estimated_size %}
-                        <div class="size-indicator">
-                            <i class="bi bi-check-circle"></i> Recommended Size: {{ estimated_size }}
+                        <div id="sizeOverlay" class="size-indicator" style="display: none; position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 10px; z-index: 15;">
+                            <div><strong>Estimated Size:</strong> <span id="estimatedSize">Detecting...</span></div>
+                            <div style="font-size: 0.9em; margin-top: 5px;">
+                                <div>Shoulder: <span id="shoulderWidth">--</span> cm</div>
+                                <div>Height: <span id="bodyHeight">--</span> cm</div>
+                            </div>
                         </div>
-                        {% endif %}
                         
                         <img id="webcam" alt="Virtual Try-On Feed">
                         <canvas id="canvas" style="display: none;"></canvas>
@@ -209,9 +211,89 @@ let garmentId = '{{ product.garment_id }}';
 let tryonSessionId = {{ tryon_session_id or 'null' }};
 let sessionStartTime = null;
 
+// Size estimation variables
+let estimatedSize = null;
+let sizeDetectionInterval = null;
+
 console.log('Product ID:', productId);
 console.log('Garment ID:', garmentId);
 console.log('Try-On Session ID:', tryonSessionId);
+
+// Simple size estimation based on video frame analysis
+function estimateSizeFromVideo(videoElement) {
+    if (!videoElement || videoElement.readyState < 2) return;
+    
+    try {
+        // Create temporary canvas for analysis
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = videoElement.videoWidth;
+        tempCanvas.height = videoElement.videoHeight;
+        
+        // Draw current frame
+        tempCtx.drawImage(videoElement, 0, 0);
+        
+        // Get image data
+        const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const data = imageData.data;
+        
+        // Simple analysis: detect person by looking for skin tones and body area
+        let personPixels = 0;
+        let totalPixels = data.length / 4;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Simple skin tone detection
+            if (r > 95 && g > 40 && b > 20 && 
+                r > g && r > b && 
+                Math.abs(r - g) > 15) {
+                personPixels++;
+            }
+        }
+        
+        const bodyPercentage = (personPixels / totalPixels) * 100;
+        
+        // Estimate size based on body coverage
+        // More coverage = larger person = larger size
+        let size = 'M';
+        if (bodyPercentage < 5) {
+            size = 'XS';
+        } else if (bodyPercentage < 8) {
+            size = 'S';
+        } else if (bodyPercentage < 12) {
+            size = 'M';
+        } else if (bodyPercentage < 16) {
+            size = 'L';
+        } else if (bodyPercentage < 20) {
+            size = 'XL';
+        } else {
+            size = 'XXL';
+        }
+        
+        estimatedSize = size;
+        
+        // Calculate approximate measurements
+        const frameWidth = videoElement.videoWidth;
+        const frameHeight = videoElement.videoHeight;
+        
+        // Rough estimates based on frame proportion
+        const shoulderWidth = Math.round(35 + (bodyPercentage * 0.8)); // 35-50cm range
+        const bodyHeight = Math.round(160 + (bodyPercentage * 2)); // 160-200cm range
+        
+        // Update UI
+        $('#sizeOverlay').show();
+        $('#estimatedSize').text(size);
+        $('#shoulderWidth').text(shoulderWidth);
+        $('#bodyHeight').text(bodyHeight);
+        
+        console.log('Size estimated:', size, 'Coverage:', bodyPercentage.toFixed(2) + '%');
+    } catch (error) {
+        console.error('Error in size estimation:', error);
+    }
+}
 
 $(document).ready(function() {
     console.log('=== jQuery Document Ready ===');
@@ -337,6 +419,14 @@ function startTryOn() {
             canvas.height = video.videoHeight;
             console.log('Canvas size:', canvas.width, 'x', canvas.height);
             
+            // Start size estimation (runs every 2 seconds)
+            sizeDetectionInterval = setInterval(() => {
+                estimateSizeFromVideo(video);
+            }, 2000);
+            
+            // Run first estimation after 1 second
+            setTimeout(() => estimateSizeFromVideo(video), 1000);
+            
             // Connect to WebSocket first, then start streaming
             console.log('Initializing WebSocket connection...');
             connectWebSocket(video);
@@ -446,6 +536,15 @@ function sendFrames(video) {
 
 function stopTryOn() {
     isStreaming = false;
+    
+    // Stop size detection
+    if (sizeDetectionInterval) {
+        clearInterval(sizeDetectionInterval);
+        sizeDetectionInterval = null;
+    }
+    
+    // Hide size overlay
+    $('#sizeOverlay').hide();
     
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
