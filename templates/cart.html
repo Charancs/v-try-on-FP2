@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Shopping Cart - Virtual Try-On{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="display-6 fw-bold mb-4">
+        <i class="bi bi-cart"></i> Shopping Cart
+    </h1>
+
+    {% if cart_items %}
+    <div class="row">
+        <div class="col-lg-8">
+            {% for item in cart_items %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-2">
+                            <img src="{{ url_for('serve_garment_image', filename=item.image_path) }}" 
+                                 class="img-fluid rounded" 
+                                 alt="{{ item.product_name }}">
+                        </div>
+                        <div class="col-md-4">
+                            <h5>{{ item.product_name }}</h5>
+                            <p class="text-muted mb-0">{{ item.brand }}</p>
+                            <p class="text-muted">Size: <strong>{{ item.size }}</strong></p>
+                        </div>
+                        <div class="col-md-2">
+                            <p class="mb-0"><strong>${{ "%.2f"|format(item.unit_price) }}</strong></p>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="input-group">
+                                <button class="btn btn-sm btn-outline-secondary update-qty" 
+                                        data-cart-id="{{ item.cart_id }}" 
+                                        data-change="-1">-</button>
+                                <input type="number" class="form-control form-control-sm text-center qty-input" 
+                                       value="{{ item.quantity }}" 
+                                       min="1" 
+                                       data-cart-id="{{ item.cart_id }}" 
+                                       readonly>
+                                <button class="btn btn-sm btn-outline-secondary update-qty" 
+                                        data-cart-id="{{ item.cart_id }}" 
+                                        data-change="1">+</button>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <p class="mb-0"><strong>${{ "%.2f"|format(item.subtotal) }}</strong></p>
+                            <button class="btn btn-sm btn-link text-danger remove-item" 
+                                    data-cart-id="{{ item.cart_id }}">
+                                <i class="bi bi-trash"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title">Order Summary</h4>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Subtotal:</span>
+                        <span id="cartTotal"><strong>${{ "%.2f"|format(total) }}</strong></span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Shipping:</span>
+                        <span class="text-success">{% if total >= 50 %}FREE{% else %}$5.00{% endif %}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-3">
+                        <h5>Total:</h5>
+                        <h5 id="finalTotal">
+                            <strong>${{ "%.2f"|format(total + (0 if total >= 50 else 5)) }}</strong>
+                        </h5>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('checkout') }}" class="btn btn-primary btn-lg">
+                            <i class="bi bi-credit-card"></i> Proceed to Checkout
+                        </a>
+                        <a href="{{ url_for('shop') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Continue Shopping
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-cart-x display-1 text-muted"></i>
+        <h3 class="mt-3">Your cart is empty</h3>
+        <p class="text-muted">Add some items to your cart to get started!</p>
+        <a href="{{ url_for('shop') }}" class="btn btn-primary mt-3">
+            <i class="bi bi-shop"></i> Start Shopping
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Update quantity
+    $('.update-qty').click(function() {
+        let cartId = $(this).data('cart-id');
+        let change = $(this).data('change');
+        let input = $(`.qty-input[data-cart-id="${cartId}"]`);
+        let newQty = parseInt(input.val()) + change;
+        
+        if (newQty < 1) return;
+        
+        updateCartItem(cartId, newQty);
+    });
+
+    // Remove item
+    $('.remove-item').click(function() {
+        if (confirm('Remove this item from cart?')) {
+            let cartId = $(this).data('cart-id');
+            removeCartItem(cartId);
+        }
+    });
+
+    function updateCartItem(cartId, quantity) {
+        $.ajax({
+            url: '{{ url_for("update_cart") }}',
+            method: 'POST',
+            data: { cart_id: cartId, quantity: quantity },
+            success: function(response) {
+                if (response.success) {
+                    location.reload();
+                } else {
+                    alert('Error updating cart');
+                }
+            }
+        });
+    }
+
+    function removeCartItem(cartId) {
+        $.ajax({
+            url: '{{ url_for("remove_from_cart") }}',
+            method: 'POST',
+            data: { cart_id: cartId },
+            success: function(response) {
+                if (response.success) {
+                    location.reload();
+                } else {
+                    alert('Error removing item');
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

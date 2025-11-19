@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.product_name }} - Virtual Try-On{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-6">
+            <img src="{{ url_for('serve_garment_image', filename=product.image_path) }}" 
+                 class="img-fluid rounded" 
+                 alt="{{ product.product_name }}">
+        </div>
+        <div class="col-md-6">
+            <div class="mb-2">
+                {% if product.discount_percent > 0 %}
+                <span class="discount-badge">-{{ product.discount_percent|int }}% OFF</span>
+                {% endif %}
+            </div>
+            <h1 class="display-6 fw-bold">{{ product.product_name }}</h1>
+            <p class="lead text-muted">{{ product.brand }}</p>
+            <p class="text-muted">
+                <i class="bi bi-collection"></i> {{ product.category }}
+            </p>
+            
+            <div class="my-4">
+                {% if product.discount_percent > 0 %}
+                <h2 class="price">${{ "%.2f"|format(product.discounted_price) }}</h2>
+                <p class="original-price">${{ "%.2f"|format(product.price) }}</p>
+                <p class="text-success fw-bold">You save ${{ "%.2f"|format(product.price - product.discounted_price) }}</p>
+                {% else %}
+                <h2 class="price">${{ "%.2f"|format(product.price) }}</h2>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <h5>Description</h5>
+                <p>{{ product.description }}</p>
+            </div>
+
+            <form id="addToCartForm">
+                <input type="hidden" name="product_id" value="{{ product.product_id }}">
+                
+                <div class="mb-4">
+                    <h5>Select Size 
+                        {% if estimated_size %}
+                        <span class="badge bg-success">Recommended: {{ estimated_size }}</span>
+                        {% endif %}
+                    </h5>
+                    <div class="size-selector">
+                        {% for size_info in product.sizes %}
+                        <div class="size-option {% if size_info.size == estimated_size %}recommended selected{% endif %}" 
+                             data-size="{{ size_info.size }}">
+                            {{ size_info.size }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" name="size" id="selectedSize" value="{{ estimated_size or '' }}">
+                    {% if not estimated_size %}
+                    <small class="text-muted">Tip: Try virtual try-on to get size recommendations!</small>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <h5>Quantity</h5>
+                    <div class="input-group" style="width: 150px;">
+                        <button type="button" class="btn btn-outline-secondary" id="decreaseQty">-</button>
+                        <input type="number" class="form-control text-center" name="quantity" id="quantity" value="1" min="1" max="10">
+                        <button type="button" class="btn btn-outline-secondary" id="increaseQty">+</button>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 mb-3">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-cart-plus"></i> Add to Cart
+                    </button>
+                    <a href="{{ url_for('virtual_tryon', product_id=product.product_id) }}" 
+                       class="btn btn-tryon btn-lg">
+                        <i class="bi bi-camera-video"></i> Try Virtual Try-On
+                    </a>
+                </div>
+            </form>
+
+            <div class="border-top pt-3">
+                <p><i class="bi bi-truck"></i> Free shipping on orders over $50</p>
+                <p><i class="bi bi-arrow-repeat"></i> 30-day return policy</p>
+                <p><i class="bi bi-shield-check"></i> Secure checkout</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Size selection
+    $('.size-option').click(function() {
+        $('.size-option').removeClass('selected');
+        $(this).addClass('selected');
+        $('#selectedSize').val($(this).data('size'));
+    });
+
+    // Quantity controls
+    $('#decreaseQty').click(function() {
+        let qty = parseInt($('#quantity').val());
+        if (qty > 1) $('#quantity').val(qty - 1);
+    });
+
+    $('#increaseQty').click(function() {
+        let qty = parseInt($('#quantity').val());
+        if (qty < 10) $('#quantity').val(qty + 1);
+    });
+
+    // Add to cart
+    $('#addToCartForm').submit(function(e) {
+        e.preventDefault();
+        
+        let size = $('#selectedSize').val();
+        if (!size) {
+            alert('Please select a size');
+            return;
+        }
+
+        $.ajax({
+            url: '{{ url_for("add_to_cart") }}',
+            method: 'POST',
+            data: $(this).serialize(),
+            success: function(response) {
+                if (response.success) {
+                    // Update cart count
+                    $('.cart-badge').text(response.cart_count);
+                    
+                    // Show success message
+                    alert('Product added to cart!');
+                    
+                    // Optionally redirect to cart
+                    if (confirm('Go to cart?')) {
+                        window.location.href = '{{ url_for("cart") }}';
+                    }
+                } else {
+                    alert('Error adding to cart: ' + response.error);
+                }
+            },
+            error: function() {
+                alert('Error adding to cart. Please try again.');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
