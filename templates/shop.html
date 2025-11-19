@@ -47,19 +47,14 @@
                     <div class="d-grid gap-2">
                         <a href="{{ url_for('product_detail', product_id=product.product_id) }}" 
                            class="btn btn-primary">
-                            <i class="bi bi-eye"></i> View Details
+                            <i class="bi bi-eye"></i> View
                         </a>
                         <a href="{{ url_for('virtual_tryon', product_id=product.product_id) }}" 
                            class="btn btn-tryon">
-                            <i class="bi bi-camera-video"></i> Virtual Try-On
+                            <i class="bi bi-camera-video"></i> Try-On
                         </a>
                     </div>
                 </div>
-                {% if product.model_available %}
-                <div class="card-footer bg-success text-white text-center">
-                    <small><i class="bi bi-check-circle"></i> Virtual Try-On Available</small>
-                </div>
-                {% endif %}
             </div>
         </div>
         {% endfor %}
