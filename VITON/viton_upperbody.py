@@ -67,12 +67,16 @@ class FrameProcessor:
         for i, garment_name in enumerate(self.garment_name_list):
             new_model = make_pix2pix_model(garment_name, 6, output_nc=4,ckpt_dir=self.ckpt_dir)
             if self.viton_model_list[i] is None:
+                # Store models on CPU initially to save GPU memory
+                new_model = new_model.cpu()
                 self.viton_model_list[i]= new_model
 
     def load_one_models(self, garment_name):
         new_model = make_pix2pix_model(garment_name, 6, output_nc=4,ckpt_dir=self.ckpt_dir)
         id = self.garment_name_list.index(garment_name)
         if self.viton_model_list[id] is None:
+            # Store model on CPU initially
+            new_model = new_model.cpu()
             self.viton_model_list[id]= new_model
 
     def switch_to_target_garment(self,garment_id):
@@ -83,13 +87,19 @@ class FrameProcessor:
             print("Loading from disk target garment id: ", garment_id)
             self.load_one_models(self.garment_name_list[id])
         old_model = self.viton_model
-        new_model=self.viton_model_list[id].to('cuda:0') if garment_id>=0 else None
-        print("Finished")
+        # Move model to CUDA and set to eval mode
+        if garment_id >= 0:
+            new_model = self.viton_model_list[id]
+            new_model = new_model.cuda()
+            new_model.eval()
+        else:
+            new_model = None
+        print("Finished loading model to GPU")
         if self.viton_model is not None:
             del self.viton_model
         self.viton_model = new_model
         if old_model is not None:
-            old_model = old_model.to('cpu')
+            old_model = old_model.cpu()
             del old_model
             torch.cuda.empty_cache()
         self.lock.release()
