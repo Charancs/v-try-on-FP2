@@ -1,0 +1,659 @@
+{% extends "base.html" %}
+
+{% block title %}Virtual Try-On - {{ product.product_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    #videoContainer {
+        position: relative;
+        background: #000;
+        border-radius: 10px;
+        overflow: hidden;
+        width: 100%;
+        max-width: 550px;
+        margin: 0 auto;
+        aspect-ratio: 9 / 16;
+        max-height: 650px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    #webcam {
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: #1a1a1a;
+        object-fit: cover;
+    }
+    #canvas {
+        display: none;
+    }
+    .controls {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        z-index: 10;
+    }
+    .control-btn {
+        background: rgba(79, 70, 229, 0.95);
+        border: 2px solid white;
+        color: white;
+        padding: 10px 12px;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.3s;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .control-btn:hover {
+        background: rgba(79, 70, 229, 1);
+        transform: scale(1.1);
+        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.5);
+    }
+    .size-indicator {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(16, 185, 129, 0.9);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 15px;
+        font-weight: bold;
+        font-size: 0.9rem;
+        z-index: 10;
+    }
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.2rem;
+        z-index: 20;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <a href="{{ url_for('shop') }}" 
+               class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Product
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="mb-4">
+                        <i class="bi bi-camera-video"></i> Virtual Try-On - {{ product.product_name }}
+                    </h3>
+                    
+                    <div id="videoContainer">
+                        <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+                            <div>
+                                <div class="spinner-border" role="status"></div>
+                                <p class="mt-3">Initializing Virtual Try-On...</p>
+                            </div>
+                        </div>
+                        
+                        <img id="webcam" alt="Virtual Try-On Feed">
+                        <canvas id="canvas" style="display: none;"></canvas>
+                        <video id="hiddenVideo" style="display: none;" autoplay playsinline></video>
+                        
+                        <div class="controls">
+                            <button id="startBtn" class="control-btn" title="Start Camera" onclick="window.startTryOn(); return false;">
+                                <i class="bi bi-play-fill fs-4"></i>
+                            </button>
+                            <button id="stopBtn" class="control-btn" style="display:none;" title="Stop Camera" onclick="window.stopTryOn(); return false;">
+                                <i class="bi bi-stop-fill fs-4"></i>
+                            </button>
+                            <button id="captureBtn" class="control-btn" style="display:none;" title="Capture Photo" onclick="window.capturePhoto(); return false;">
+                                <i class="bi bi-camera-fill fs-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3">
+                        <strong><i class="bi bi-info-circle"></i> Tips:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Stand in a well-lit area for best results</li>
+                            <li>Keep your whole upper body visible in the frame</li>
+                            <li>Face the camera directly and stand naturally</li>
+                            <li>The system will automatically detect your body and apply the garment</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{{ product.product_name }}</h5>
+                    <p class="text-muted">{{ product.brand }}</p>
+                    <h4 class="price">${{ "%.2f"|format(product.discounted_price or product.price) }}</h4>
+                    
+                    {% if estimated_size %}
+                    <div class="alert alert-success">
+                        <strong><i class="bi bi-ruler"></i> Your Size: {{ estimated_size }}</strong>
+                        <p class="mb-0 small mt-1">Based on your body measurements</p>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <strong><i class="bi bi-exclamation-triangle"></i> Size Not Set</strong>
+                        <p class="mb-0 small mt-1">Try-on will help estimate your size!</p>
+                    </div>
+                    {% endif %}
+
+                    {% if measurements %}
+                    <div class="mb-3">
+                        <h6>Your Measurements:</h6>
+                        <small class="text-muted">
+                            Height: {{ measurements.height_cm }} cm<br>
+                            Chest: {{ measurements.chest_cm }} cm<br>
+                            Shoulder: {{ measurements.shoulder_cm }} cm
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Quick Actions</h6>
+                    <div class="d-grid gap-2">
+                        <button id="saveToClosetBtn" class="btn btn-outline-primary">
+                            <i class="bi bi-heart"></i> Save to Closet
+                        </button>
+                        <button id="addToCartBtn" class="btn btn-primary">
+                            <i class="bi bi-cart-plus"></i> Add to Cart
+                        </button>
+                        <a href="{{ url_for('product_detail', product_id=product.product_id) }}" 
+                           class="btn btn-outline-secondary">
+                            <i class="bi bi-eye"></i> View Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+console.log('=== Virtual Try-On Script Loaded ===');
+let ws = null;
+let localStream = null;
+let isStreaming = false;
+let canvas, ctx, webcamImg;
+let productId = {{ product.product_id }};
+let garmentId = '{{ product.garment_id }}';
+let tryonSessionId = {{ tryon_session_id or 'null' }};
+let sessionStartTime = null;
+
+// Size estimation variables
+let estimatedSize = null;
+let sizeDetectionInterval = null;
+let sizeReadings = []; // Store last 5 readings
+const MAX_READINGS = 5; // 5 readings × 2 seconds = 10 seconds total
+
+console.log('Product ID:', productId);
+console.log('Garment ID:', garmentId);
+console.log('Try-On Session ID:', tryonSessionId);
+
+// Calculate average size from readings
+function calculateAverageSize() {
+    if (sizeReadings.length < MAX_READINGS) return null;
+    
+    // Count occurrences of each size
+    const sizeCounts = {};
+    sizeReadings.forEach(reading => {
+        sizeCounts[reading.size] = (sizeCounts[reading.size] || 0) + 1;
+    });
+    
+    // Find most common size
+    let mostCommonSize = null;
+    let maxCount = 0;
+    for (const [size, count] of Object.entries(sizeCounts)) {
+        if (count > maxCount) {
+            maxCount = count;
+            mostCommonSize = size;
+        }
+    }
+    
+    // Calculate average measurements
+    const avgShoulder = Math.round(
+        sizeReadings.reduce((sum, r) => sum + r.shoulder, 0) / sizeReadings.length
+    );
+    const avgHeight = Math.round(
+        sizeReadings.reduce((sum, r) => sum + r.height, 0) / sizeReadings.length
+    );
+    
+    return {
+        size: mostCommonSize,
+        shoulder: avgShoulder,
+        height: avgHeight
+    };
+}
+
+// Update size display in the product info area
+function updateSizeDisplay(sizeData) {
+    if (!sizeData) return;
+    
+    // Update the "Size Not Set" warning area
+    const sizeWarning = $('.alert-warning');
+    sizeWarning.removeClass('alert-warning').addClass('alert-success');
+    sizeWarning.html(`
+        <strong style="font-size: 0.9em;"><i class="bi bi-check-circle"></i> Size Estimated!</strong>
+        <div style="margin-top: 8px;">
+            <div style="font-size: 1.1em; font-weight: bold; color: #0d6efd;">Size: ${sizeData.size}</div>
+            <div style="font-size: 0.85em; margin-top: 4px; color: #666;">
+                <div>Shoulder: ${sizeData.shoulder} cm | Height: ${sizeData.height} cm</div>
+            </div>
+        </div>
+    `);
+    
+    console.log('✓ Size updated in UI:', sizeData.size);
+}
+
+// Simple size estimation based on video frame analysis
+function estimateSizeFromVideo(videoElement) {
+    if (!videoElement || videoElement.readyState < 2) return;
+    
+    try {
+        // Create temporary canvas for analysis
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = videoElement.videoWidth;
+        tempCanvas.height = videoElement.videoHeight;
+        
+        // Draw current frame
+        tempCtx.drawImage(videoElement, 0, 0);
+        
+        // Get image data
+        const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const data = imageData.data;
+        
+        // Simple analysis: detect person by looking for skin tones and body area
+        let personPixels = 0;
+        let totalPixels = data.length / 4;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Simple skin tone detection
+            if (r > 95 && g > 40 && b > 20 && 
+                r > g && r > b && 
+                Math.abs(r - g) > 15) {
+                personPixels++;
+            }
+        }
+        
+        const bodyPercentage = (personPixels / totalPixels) * 100;
+        
+        // Estimate size based on body coverage
+        // More coverage = larger person = larger size
+        let size = 'M';
+        if (bodyPercentage < 5) {
+            size = 'XS';
+        } else if (bodyPercentage < 8) {
+            size = 'S';
+        } else if (bodyPercentage < 12) {
+            size = 'M';
+        } else if (bodyPercentage < 16) {
+            size = 'L';
+        } else if (bodyPercentage < 20) {
+            size = 'XL';
+        } else {
+            size = 'XXL';
+        }
+        
+        estimatedSize = size;
+        
+        // Calculate approximate measurements
+        const frameWidth = videoElement.videoWidth;
+        const frameHeight = videoElement.videoHeight;
+        
+        // Rough estimates based on frame proportion
+        const shoulderWidth = Math.round(35 + (bodyPercentage * 0.8)); // 35-50cm range
+        const bodyHeight = Math.round(160 + (bodyPercentage * 2)); // 160-200cm range
+        
+        // Add reading to array
+        sizeReadings.push({
+            size: size,
+            shoulder: shoulderWidth,
+            height: bodyHeight
+        });
+        
+        // Keep only last MAX_READINGS readings
+        if (sizeReadings.length > MAX_READINGS) {
+            sizeReadings.shift();
+        }
+        
+        // Update UI only when we have enough readings
+        if (sizeReadings.length === MAX_READINGS) {
+            const avgSize = calculateAverageSize();
+            updateSizeDisplay(avgSize);
+        }
+        
+        console.log('Size reading collected:', size, 'Total readings:', sizeReadings.length);
+    } catch (error) {
+        console.error('Error in size estimation:', error);
+    }
+}
+
+$(document).ready(function() {
+    console.log('=== jQuery Document Ready ===');
+    
+    canvas = document.getElementById('canvas');
+    ctx = canvas.getContext('2d');
+    webcamImg = document.getElementById('webcam');
+    
+    console.log('Canvas element:', canvas);
+    console.log('Webcam img element:', webcamImg);
+    
+    // Check if elements exist
+    if (!canvas) {
+        console.error('❌ Canvas element not found!');
+    }
+    if (!webcamImg) {
+        console.error('❌ Webcam img element not found!');
+    }
+    
+    // Check if buttons exist
+    const startBtn = $('#startBtn');
+    console.log('Start button found:', startBtn.length > 0);
+    console.log('Start button element:', startBtn[0]);
+
+    // Start button
+    $('#startBtn').click(function() {
+        console.log('>>> Start button clicked! <<<');
+        startTryOn();
+    });
+    
+    // Stop button
+    $('#stopBtn').click(function() {
+        console.log('>>> Stop button clicked! <<<');
+        stopTryOn();
+    });
+
+    // Capture button
+    $('#captureBtn').click(capturePhoto);
+
+    // Save to closet
+    $('#saveToClosetBtn').click(function() {
+        $.ajax({
+            url: '{{ url_for("add_to_closet") }}',
+            method: 'POST',
+            data: {
+                product_id: productId,
+                tried_on: true,
+                favorited: true
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('Saved to your virtual closet!');
+                    
+                    // Update session
+                    if (tryonSessionId) {
+                        updateTryOnSession(true, false);
+                    }
+                }
+            }
+        });
+    });
+
+    // Add to cart
+    $('#addToCartBtn').click(function() {
+        let size = '{{ estimated_size or "" }}';
+        if (!size) {
+            size = prompt('Please enter size (S/M/L/XL/XXL):');
+            if (!size) return;
+        }
+
+        $.ajax({
+            url: '{{ url_for("add_to_cart") }}',
+            method: 'POST',
+            data: {
+                product_id: productId,
+                size: size,
+                quantity: 1
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('Added to cart!');
+                    
+                    // Update session
+                    if (tryonSessionId) {
+                        updateTryOnSession(false, true);
+                    }
+                    
+                    if (confirm('Go to cart?')) {
+                        window.location.href = '{{ url_for("cart") }}';
+                    }
+                }
+            }
+        });
+    });
+});
+
+// Make functions globally accessible
+window.startTryOn = startTryOn;
+window.stopTryOn = stopTryOn;
+window.capturePhoto = capturePhoto;
+
+function startTryOn() {
+    console.log('Starting Virtual Try-On...');
+    $('#loadingOverlay').show();
+    
+    // Get webcam access with high resolution for GPU server (needs 1280x720)
+    navigator.mediaDevices.getUserMedia({ 
+        video: { width: 1280, height: 720 } 
+    })
+    .then(function(stream) {
+        console.log('✓ Webcam access granted');
+        localStream = stream;
+        
+        // Use the hidden video element
+        let video = document.getElementById('hiddenVideo');
+        video.srcObject = stream;
+        video.play();
+
+        // Wait for video to be ready
+        video.onloadedmetadata = function() {
+            console.log('✓ Video metadata loaded');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            console.log('Canvas size:', canvas.width, 'x', canvas.height);
+            
+            // Start size estimation (runs every 2 seconds)
+            sizeDetectionInterval = setInterval(() => {
+                estimateSizeFromVideo(video);
+            }, 2000);
+            
+            // Run first estimation after 1 second
+            setTimeout(() => estimateSizeFromVideo(video), 1000);
+            
+            // Connect to WebSocket first, then start streaming
+            console.log('Initializing WebSocket connection...');
+            connectWebSocket(video);
+            
+            // Update UI
+            $('#startBtn').hide();
+            $('#stopBtn, #captureBtn').show();
+            $('#loadingOverlay').hide();
+            console.log('✓ Virtual Try-On setup complete!');
+        };
+    })
+    .catch(function(err) {
+        console.error('✗ Error accessing webcam:', err);
+        alert('Could not access webcam. Please check permissions.');
+        $('#loadingOverlay').hide();
+    });
+}
+
+function connectWebSocket(video) {
+    const wsUrl = 'ws://' + window.location.hostname + ':8765';
+    console.log('Connecting to WebSocket:', wsUrl);
+    
+    ws = new WebSocket(wsUrl);
+    
+    ws.onopen = function() {
+        console.log('✓ WebSocket connected successfully!');
+        
+        // Small delay to ensure connection is fully established
+        setTimeout(function() {
+            // Send garment change command
+            let garmentIndex = getGarmentIndex(garmentId);
+            console.log('Sending garment change command:', garmentIndex, 'for garment:', garmentId);
+            
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'garment_change',
+                    garment_id: garmentIndex
+                }));
+                
+                // NOW start sending frames after WebSocket is open
+                sessionStartTime = Date.now();
+                isStreaming = true;
+                console.log('✓ Starting frame transmission...');
+                console.log('Video element:', video);
+                console.log('Is video playing:', !video.paused && !video.ended && video.readyState > 2);
+                sendFrames(video);
+            } else {
+                console.error('WebSocket not ready, state:', ws.readyState);
+            }
+        }, 100);
+    };
+    
+    ws.onmessage = function(event) {
+        let data = JSON.parse(event.data);
+        console.log('📨 Received message type:', data.type);
+        
+        if (data.type === 'frame') {
+            // Display processed frame from GPU server
+            console.log('✓ Received processed frame, displaying...');
+            webcamImg.src = data.data;
+        } else if (data.type === 'error') {
+            console.error('Server error:', data.message);
+            alert('Error: ' + data.message);
+        } else if (data.type === 'garment_changed') {
+            console.log('Garment changed to:', data.garment_id);
+        }
+    };
+    
+    ws.onerror = function(error) {
+        console.error('WebSocket error:', error);
+        alert('WebSocket connection failed! Check if the server is running.');
+    };
+    
+    ws.onclose = function() {
+        console.log('WebSocket closed');
+    };
+}
+
+function getGarmentIndex(garmentId) {
+    const garments = ['jin_17', 'jin_18', 'jin_22', 'lab_03', 'lab_04', 'lab_07'];
+    return garments.indexOf(garmentId);
+}
+
+function sendFrames(video) {
+    if (!isStreaming) {
+        console.log('Streaming stopped');
+        return;
+    }
+    
+    // Capture frame from video
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Convert to base64 JPEG directly (faster than toBlob)
+    let base64 = canvas.toDataURL('image/jpeg', 0.8);
+    
+    // Send via WebSocket
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'frame',
+            data: base64
+        }));
+    }
+    
+    // Wait 100ms (10 FPS) to match GPU server processing speed
+    setTimeout(function() { sendFrames(video); }, 100);
+}
+
+function stopTryOn() {
+    isStreaming = false;
+    
+    // Stop size detection
+    if (sizeDetectionInterval) {
+        clearInterval(sizeDetectionInterval);
+        sizeDetectionInterval = null;
+    }
+    
+    // Clear size readings
+    sizeReadings = [];
+    
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
+    
+    if (ws) {
+        ws.close();
+    }
+    
+    // Update session with duration
+    if (tryonSessionId && sessionStartTime) {
+        let duration = Math.floor((Date.now() - sessionStartTime) / 1000);
+        updateTryOnSession(false, false, duration);
+    }
+    
+    // Update UI
+    $('#stopBtn, #captureBtn').hide();
+    $('#startBtn').show();
+    webcamImg.src = '';
+}
+
+function capturePhoto() {
+    // Create a link to download the current frame
+    let link = document.createElement('a');
+    link.download = 'virtual_tryon_' + Date.now() + '.jpg';
+    link.href = webcamImg.src;
+    link.click();
+    
+    alert('Photo captured and saved!');
+}
+
+function updateTryOnSession(savedToCloset, addedToCart, duration) {
+    if (!tryonSessionId) return;
+    
+    // This would call backend to update session
+    // Implement if needed for analytics
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (isStreaming) {
+        stopTryOn();
+    }
+});
+</script>
+{% endblock %}

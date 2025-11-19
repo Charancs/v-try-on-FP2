@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Virtual Try-On Shop{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body p-4">
+                    <h4 class="text-center mb-3">
+                        <i class="bi bi-box-arrow-in-right"></i> Login
+                    </h4>
+                    <form method="POST">
+                        <div class="mb-2">
+                            <label for="username" class="form-label" style="font-size: 0.9rem;">Username</label>
+                            <input type="text" class="form-control form-control-sm" id="username" name="username" required>
+                        </div>
+                        <div class="mb-2">
+                            <label for="password" class="form-label" style="font-size: 0.9rem;">Password</label>
+                            <input type="password" class="form-control form-control-sm" id="password" name="password" required>
+                        </div>
+                        <div class="mb-2 form-check">
+                            <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                            <label class="form-check-label" for="remember" style="font-size: 0.85rem;">Remember me</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </button>
+                    </form>
+                    <div class="text-center mt-2">
+                        <p style="font-size: 0.85rem; margin-bottom: 0;">Don't have an account? <a href="{{ url_for('register') }}">Register</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

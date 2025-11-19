@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <button onclick="testConnection()">Test WebSocket</button>
+    <div id="status"></div>
+    <div id="log" style="margin-top: 20px; white-space: pre-wrap; font-family: monospace;"></div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+
+        function testConnection() {
+            document.getElementById('status').innerHTML = 'Testing...';
+            log('=== WebSocket Connection Test ===');
+            
+            const wsUrl = 'ws://' + window.location.hostname + ':8765';
+            log('Connecting to: ' + wsUrl);
+            
+            const ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                log('✓ SUCCESS! WebSocket connected!');
+                document.getElementById('status').innerHTML = '<span style="color: green;">✓ Connected successfully!</span>';
+                
+                // Send a test message
+                log('Sending test message...');
+                ws.send(JSON.stringify({
+                    type: 'test',
+                    message: 'Hello from browser'
+                }));
+            };
+            
+            ws.onmessage = function(event) {
+                log('Received message: ' + event.data);
+            };
+            
+            ws.onerror = function(error) {
+                log('✗ ERROR: WebSocket connection failed!');
+                log('Error details: ' + JSON.stringify(error));
+                document.getElementById('status').innerHTML = '<span style="color: red;">✗ Connection failed!</span>';
+            };
+            
+            ws.onclose = function(event) {
+                log('WebSocket closed. Code: ' + event.code + ', Reason: ' + event.reason);
+                if (event.code !== 1000) {
+                    log('✗ Connection closed abnormally');
+                }
+            };
+            
+            // Timeout check
+            setTimeout(function() {
+                if (ws.readyState !== WebSocket.OPEN) {
+                    log('✗ TIMEOUT: Could not connect within 5 seconds');
+                    log('WebSocket state: ' + ws.readyState);
+                    log('0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED');
+                    document.getElementById('status').innerHTML = '<span style="color: red;">✗ Connection timeout!</span>';
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
