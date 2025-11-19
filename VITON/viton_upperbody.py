@@ -42,7 +42,7 @@ def make_pix2pix_model(name, input_nc, output_nc=3, model_name='pix2pixHD',ckpt_
         opt.checkpoints_dir='./rtv_ckpts'
     else:
         opt.checkpoints_dir=ckpt_dir
-    opt.gpu_ids=''#load to cpu
+    opt.gpu_ids=[0]  # Load to GPU - use list of integers directly
     model = create_model(opt)
     # print(model)
     return model
@@ -77,19 +77,19 @@ class FrameProcessor:
 
     def switch_to_target_garment(self,garment_id):
         self.lock.acquire()
-        print("Loading from CPU target garment id: ", garment_id)
+        print("Loading target garment id: ", garment_id)
         id = garment_id
         if self.viton_model_list[id] is None and id >= 0:
             print("Loading from disk target garment id: ", garment_id)
             self.load_one_models(self.garment_name_list[id])
         old_model = self.viton_model
-        new_model=self.viton_model_list[id].to('cuda:0') if garment_id>=0 else None
+        new_model=self.viton_model_list[id] if garment_id>=0 else None  # Model already on GPU
         print("Finished")
         if self.viton_model is not None:
             del self.viton_model
         self.viton_model = new_model
         if old_model is not None:
-            old_model = old_model.to('cpu')
+            # No need to move to CPU since we're managing GPU memory
             del old_model
             torch.cuda.empty_cache()
         self.lock.release()

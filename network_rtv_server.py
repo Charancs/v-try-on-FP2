@@ -20,9 +20,39 @@ class NetworkRTVServer:
         
         # Initialize RTV FrameProcessor (same as in rtl_demo.py)
         print("Initializing RTV FrameProcessor...")
-        # Set the correct checkpoint directory path
-        ckpt_dir = "/home/test/Desktop/LLM/RTV/rtv_ckpts"  # Linux path where checkpoints are located
-        self.frame_processor = FrameProcessor(garment_id_list, ckpt_dir=ckpt_dir)
+        # Set the correct checkpoint directory path - look for checkpoints in current workspace
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        ckpt_dir = os.path.join(current_dir, "checkpoints")  # Look in local checkpoints folder
+        
+        # If checkpoints doesn't exist, try other common locations
+        if not os.path.exists(ckpt_dir):
+            possible_paths = [
+                "/home/test/Desktop/LLM/RTV/rtv_ckpts",  # Original Linux path
+                "/opt/dlami/nvme/RTV/checkpoints",       # From training_instructions.md
+                os.path.join(current_dir, "rtv_ckpts"),  # Alternative local path
+            ]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    ckpt_dir = path
+                    break
+        
+        print(f"Using checkpoint directory: {ckpt_dir}")
+        if not os.path.exists(ckpt_dir):
+            print(f"WARNING: Checkpoint directory does not exist: {ckpt_dir}")
+            print("You may need to:")
+            print("1. Download pre-trained checkpoints")
+            print("2. Train new models using the training_instructions.md")
+            
+        try:
+            self.frame_processor = FrameProcessor(garment_id_list, ckpt_dir=ckpt_dir)
+        except Exception as e:
+            print(f"ERROR: Failed to initialize FrameProcessor: {e}")
+            print("\nTroubleshooting steps:")
+            print("1. Check if checkpoint files exist in:", ckpt_dir)
+            print("2. Verify file permissions")
+            print("3. Ensure you have the correct model checkpoints")
+            print("4. Follow training_instructions.md to train new models")
+            raise
         print("✓ RTV FrameProcessor initialized")
         
         # Load the first garment to GPU

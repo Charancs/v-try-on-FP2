@@ -15,7 +15,7 @@ import glob
 app = Flask(__name__)
 
 # GPU server connection
-GPU_SERVER_IP = "172.28.80.80"
+GPU_SERVER_IP = "13.235.49.130"
 GPU_SERVER_PORT = 9999
 
 # Store active websocket clients

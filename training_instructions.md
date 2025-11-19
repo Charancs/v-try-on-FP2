@@ -41,3 +41,6 @@ Run this command to use your trained checkpoint for virtual try-on. We provide a
 python Inference/upperbody_inference.py --input_video <input video path> --garment_name <garment name>
 ```
 The output video will be saved as `./output.mp4`.
+
+
+:/opt/dlami/nvme/RTV
