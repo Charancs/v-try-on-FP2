@@ -7,17 +7,17 @@
     #videoContainer {
         position: relative;
         background: #000;
-        border-radius: 15px;
+        border-radius: 10px;
         overflow: hidden;
-        max-width: 800px;
+        max-width: 320px;
         margin: 0 auto;
-        min-height: 600px;
+        min-height: 240px;
     }
     #webcam {
         width: 100%;
         height: auto;
         display: block;
-        min-height: 600px;
+        min-height: 240px;
         background: #1a1a1a;
     }
     #canvas {
@@ -104,14 +104,6 @@
                             <div>
                                 <div class="spinner-border" role="status"></div>
                                 <p class="mt-3">Initializing Virtual Try-On...</p>
-                            </div>
-                        </div>
-                        
-                        <div id="sizeOverlay" class="size-indicator" style="display: none; position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 10px; z-index: 15;">
-                            <div><strong>Estimated Size:</strong> <span id="estimatedSize">Detecting...</span></div>
-                            <div style="font-size: 0.9em; margin-top: 5px;">
-                                <div>Shoulder: <span id="shoulderWidth">--</span> cm</div>
-                                <div>Height: <span id="bodyHeight">--</span> cm</div>
                             </div>
                         </div>
                         
@@ -214,10 +206,67 @@ let sessionStartTime = null;
 // Size estimation variables
 let estimatedSize = null;
 let sizeDetectionInterval = null;
+let sizeReadings = []; // Store last 5 readings
+const MAX_READINGS = 5; // 5 readings × 2 seconds = 10 seconds total
 
 console.log('Product ID:', productId);
 console.log('Garment ID:', garmentId);
 console.log('Try-On Session ID:', tryonSessionId);
+
+// Calculate average size from readings
+function calculateAverageSize() {
+    if (sizeReadings.length < MAX_READINGS) return null;
+    
+    // Count occurrences of each size
+    const sizeCounts = {};
+    sizeReadings.forEach(reading => {
+        sizeCounts[reading.size] = (sizeCounts[reading.size] || 0) + 1;
+    });
+    
+    // Find most common size
+    let mostCommonSize = null;
+    let maxCount = 0;
+    for (const [size, count] of Object.entries(sizeCounts)) {
+        if (count > maxCount) {
+            maxCount = count;
+            mostCommonSize = size;
+        }
+    }
+    
+    // Calculate average measurements
+    const avgShoulder = Math.round(
+        sizeReadings.reduce((sum, r) => sum + r.shoulder, 0) / sizeReadings.length
+    );
+    const avgHeight = Math.round(
+        sizeReadings.reduce((sum, r) => sum + r.height, 0) / sizeReadings.length
+    );
+    
+    return {
+        size: mostCommonSize,
+        shoulder: avgShoulder,
+        height: avgHeight
+    };
+}
+
+// Update size display in the product info area
+function updateSizeDisplay(sizeData) {
+    if (!sizeData) return;
+    
+    // Update the "Size Not Set" warning area
+    const sizeWarning = $('.alert-warning');
+    sizeWarning.removeClass('alert-warning').addClass('alert-success');
+    sizeWarning.html(`
+        <strong style="font-size: 0.9em;"><i class="bi bi-check-circle"></i> Size Estimated!</strong>
+        <div style="margin-top: 8px;">
+            <div style="font-size: 1.1em; font-weight: bold; color: #0d6efd;">Size: ${sizeData.size}</div>
+            <div style="font-size: 0.85em; margin-top: 4px; color: #666;">
+                <div>Shoulder: ${sizeData.shoulder} cm | Height: ${sizeData.height} cm</div>
+            </div>
+        </div>
+    `);
+    
+    console.log('✓ Size updated in UI:', sizeData.size);
+}
 
 // Simple size estimation based on video frame analysis
 function estimateSizeFromVideo(videoElement) {
@@ -283,13 +332,25 @@ function estimateSizeFromVideo(videoElement) {
         const shoulderWidth = Math.round(35 + (bodyPercentage * 0.8)); // 35-50cm range
         const bodyHeight = Math.round(160 + (bodyPercentage * 2)); // 160-200cm range
         
-        // Update UI
-        $('#sizeOverlay').show();
-        $('#estimatedSize').text(size);
-        $('#shoulderWidth').text(shoulderWidth);
-        $('#bodyHeight').text(bodyHeight);
+        // Add reading to array
+        sizeReadings.push({
+            size: size,
+            shoulder: shoulderWidth,
+            height: bodyHeight
+        });
         
-        console.log('Size estimated:', size, 'Coverage:', bodyPercentage.toFixed(2) + '%');
+        // Keep only last MAX_READINGS readings
+        if (sizeReadings.length > MAX_READINGS) {
+            sizeReadings.shift();
+        }
+        
+        // Update UI only when we have enough readings
+        if (sizeReadings.length === MAX_READINGS) {
+            const avgSize = calculateAverageSize();
+            updateSizeDisplay(avgSize);
+        }
+        
+        console.log('Size reading collected:', size, 'Total readings:', sizeReadings.length);
     } catch (error) {
         console.error('Error in size estimation:', error);
     }
@@ -399,7 +460,7 @@ function startTryOn() {
     console.log('Starting Virtual Try-On...');
     $('#loadingOverlay').show();
     
-    // Get webcam access with higher resolution (1280x720 like simple_web_server.py)
+    // Get webcam access with high resolution for GPU server (needs 1280x720)
     navigator.mediaDevices.getUserMedia({ 
         video: { width: 1280, height: 720 } 
     })
@@ -543,8 +604,8 @@ function stopTryOn() {
         sizeDetectionInterval = null;
     }
     
-    // Hide size overlay
-    $('#sizeOverlay').hide();
+    // Clear size readings
+    sizeReadings = [];
     
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
